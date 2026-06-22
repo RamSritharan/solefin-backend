@@ -1,13 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
-import { IsNull, FindOptionsWhere } from 'typeorm';
-import { AppDataSource } from '../config/database';
+import { Op } from 'sequelize';
 import { Category, CategoryType } from '../entities/Category';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
-const categoryRepository = () => AppDataSource.getRepository(Category);
 
 const createValidation = validate({
   name: { required: true, type: 'string' },
@@ -23,12 +21,14 @@ router.get(
     try {
       const userId = req.user!.id;
 
-      const categories = await categoryRepository().find({
-        where: [
-          { userId: IsNull() } as FindOptionsWhere<Category>,
-          { userId },
+      const categories = await Category.findAll({
+        where: {
+          [Op.or]: [{ userId: null }, { userId }],
+        },
+        order: [
+          ['type', 'ASC'],
+          ['name', 'ASC'],
         ],
-        order: { type: 'ASC', name: 'ASC' },
       });
 
       res.json({ categories });
@@ -47,7 +47,7 @@ router.post(
       const userId = req.user!.id;
       const { name, type, scheduleCLine } = req.body;
 
-      const category = categoryRepository().create({
+      const category = await Category.create({
         name,
         type,
         scheduleCLine: scheduleCLine || null,
@@ -55,7 +55,6 @@ router.post(
         userId,
       });
 
-      await categoryRepository().save(category);
       res.status(201).json({ category });
     } catch (error) {
       next(error);
@@ -70,7 +69,7 @@ router.put(
     try {
       const userId = req.user!.id;
 
-      const category = await categoryRepository().findOne({
+      const category = await Category.findOne({
         where: { id: req.params.id as string, userId, isCustom: true },
       });
 
@@ -84,7 +83,7 @@ router.put(
       if (type !== undefined) category.type = type;
       if (scheduleCLine !== undefined) category.scheduleCLine = scheduleCLine;
 
-      await categoryRepository().save(category);
+      await category.save();
       res.json({ category });
     } catch (error) {
       next(error);
@@ -99,7 +98,7 @@ router.delete(
     try {
       const userId = req.user!.id;
 
-      const category = await categoryRepository().findOne({
+      const category = await Category.findOne({
         where: { id: req.params.id as string, userId, isCustom: true },
       });
 
@@ -107,7 +106,7 @@ router.delete(
         throw new AppError('Custom category not found or cannot be deleted.', 404);
       }
 
-      await categoryRepository().remove(category);
+      await category.destroy();
       res.json({ message: 'Category deleted successfully.' });
     } catch (error) {
       next(error);

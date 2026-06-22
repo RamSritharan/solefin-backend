@@ -1,13 +1,17 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  OneToMany,
-  JoinColumn,
-} from 'typeorm';
+  Model,
+  DataType,
+  PrimaryKey,
+  Default,
+  AllowNull,
+  ForeignKey,
+  BelongsTo,
+  HasMany,
+  CreatedAt,
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { User } from './User';
 import { Transaction } from './Transaction';
 
@@ -18,36 +22,47 @@ export enum AccountType {
   CASH = 'cash',
 }
 
-@Entity('accounts')
-export class Account {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+@Table({ tableName: 'accounts' })
+export class Account extends Model {
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column(DataType.UUID)
+  declare id: string;
 
-  @Column({ type: 'uuid', name: 'user_id' })
-  userId!: string;
+  @ForeignKey(() => User)
+  @AllowNull(false)
+  @Column({ type: DataType.UUID, field: 'user_id', onDelete: 'CASCADE' })
+  declare userId: string;
 
-  @Column({ type: 'varchar' })
-  name!: string;
+  @AllowNull(false)
+  @Column(DataType.STRING)
+  declare name: string;
 
-  @Column({ type: 'enum', enum: AccountType })
-  type!: AccountType;
+  @AllowNull(false)
+  @Column(DataType.ENUM(...Object.values(AccountType)))
+  declare type: AccountType;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  balance!: number;
+  @AllowNull(false)
+  @Default(0)
+  @Column(DataType.DECIMAL(12, 2))
+  declare balance: number;
 
-  @Column({ type: 'varchar', default: 'USD' })
-  currency!: string;
+  @AllowNull(false)
+  @Default('USD')
+  @Column(DataType.STRING)
+  declare currency: string;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreatedAt
+  @Column({ field: 'created_at' })
+  declare createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  @UpdatedAt
+  @Column({ field: 'updated_at' })
+  declare updatedAt: Date;
 
-  @ManyToOne(() => User, (user) => user.accounts, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user!: User;
+  @BelongsTo(() => User)
+  declare user?: User;
 
-  @OneToMany(() => Transaction, (transaction) => transaction.account)
-  transactions!: Transaction[];
+  @HasMany(() => Transaction)
+  declare transactions?: Transaction[];
 }

@@ -1,12 +1,10 @@
 import { Router, Response, NextFunction } from 'express';
-import { AppDataSource } from '../config/database';
 import { Invoice, InvoiceStatus } from '../entities/Invoice';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
-const invoiceRepository = () => AppDataSource.getRepository(Invoice);
 
 const createValidation = validate({
   clientName: { required: true, type: 'string' },
@@ -26,9 +24,9 @@ router.get(
   '/',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const invoices = await invoiceRepository().find({
+      const invoices = await Invoice.findAll({
         where: { userId: req.user!.id },
-        order: { createdAt: 'DESC' },
+        order: [['createdAt', 'DESC']],
       });
       res.json({ invoices });
     } catch (error) {
@@ -42,7 +40,7 @@ router.get(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const invoice = await invoiceRepository().findOne({
+      const invoice = await Invoice.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -65,7 +63,7 @@ router.post(
     try {
       const { clientName, clientEmail, amount, dueDate, items, notes } = req.body;
 
-      const invoice = invoiceRepository().create({
+      const invoice = await Invoice.create({
         userId: req.user!.id,
         clientName,
         clientEmail: clientEmail || null,
@@ -76,7 +74,6 @@ router.post(
         status: InvoiceStatus.DRAFT,
       });
 
-      await invoiceRepository().save(invoice);
       res.status(201).json({ invoice });
     } catch (error) {
       next(error);
@@ -89,7 +86,7 @@ router.put(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const invoice = await invoiceRepository().findOne({
+      const invoice = await Invoice.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -106,7 +103,7 @@ router.put(
       if (items !== undefined) invoice.items = items;
       if (notes !== undefined) invoice.notes = notes;
 
-      await invoiceRepository().save(invoice);
+      await invoice.save();
       res.json({ invoice });
     } catch (error) {
       next(error);
@@ -120,7 +117,7 @@ router.put(
   statusValidation,
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const invoice = await invoiceRepository().findOne({
+      const invoice = await Invoice.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -129,7 +126,7 @@ router.put(
       }
 
       invoice.status = req.body.status;
-      await invoiceRepository().save(invoice);
+      await invoice.save();
       res.json({ invoice });
     } catch (error) {
       next(error);
@@ -142,7 +139,7 @@ router.delete(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const invoice = await invoiceRepository().findOne({
+      const invoice = await Invoice.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -150,7 +147,7 @@ router.delete(
         throw new AppError('Invoice not found.', 404);
       }
 
-      await invoiceRepository().remove(invoice);
+      await invoice.destroy();
       res.json({ message: 'Invoice deleted successfully.' });
     } catch (error) {
       next(error);

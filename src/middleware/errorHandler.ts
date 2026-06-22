@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { QueryFailedError, EntityNotFoundError } from 'typeorm';
+import {
+  UniqueConstraintError,
+  ForeignKeyConstraintError,
+  ValidationError as SequelizeValidationError,
+  DatabaseError,
+  EmptyResultError,
+} from 'sequelize';
 
 export class AppError extends Error {
   statusCode: number;
@@ -24,25 +30,28 @@ export const errorHandler = (
     return;
   }
 
-  if (err instanceof QueryFailedError) {
-    const pgError = err as QueryFailedError & { code?: string; detail?: string };
-
-    if (pgError.code === '23505') {
-      res.status(409).json({ error: 'A record with that value already exists.' });
-      return;
-    }
-
-    if (pgError.code === '23503') {
-      res.status(400).json({ error: 'Referenced record does not exist.' });
-      return;
-    }
-
-    res.status(400).json({ error: 'Database query error.' });
+  if (err instanceof UniqueConstraintError) {
+    res.status(409).json({ error: 'A record with that value already exists.' });
     return;
   }
 
-  if (err instanceof EntityNotFoundError) {
+  if (err instanceof ForeignKeyConstraintError) {
+    res.status(400).json({ error: 'Referenced record does not exist.' });
+    return;
+  }
+
+  if (err instanceof SequelizeValidationError) {
+    res.status(400).json({ error: err.errors.map((e) => e.message).join(' ') });
+    return;
+  }
+
+  if (err instanceof EmptyResultError) {
     res.status(404).json({ error: 'Resource not found.' });
+    return;
+  }
+
+  if (err instanceof DatabaseError) {
+    res.status(400).json({ error: 'Database query error.' });
     return;
   }
 

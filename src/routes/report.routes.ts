@@ -1,13 +1,25 @@
 import { Router, Response, NextFunction } from 'express';
-import { AppDataSource } from '../config/database';
+import { fn, col, literal, Op, WhereOptions } from 'sequelize';
 import { Transaction, TransactionType } from '../entities/Transaction';
 import { Account } from '../entities/Account';
+import { Category } from '../entities/Category';
 import { Invoice, InvoiceStatus } from '../entities/Invoice';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
 router.use(authenticate);
+
+function dateRangeWhere(startDate: unknown, endDate: unknown): WhereOptions {
+  const where: Record<string, unknown> = {};
+  const range: Record<symbol, unknown> = {};
+  if (startDate) range[Op.gte] = startDate;
+  if (endDate) range[Op.lte] = endDate;
+  if (Object.getOwnPropertySymbols(range).length > 0) {
+    where.date = range;
+  }
+  return where;
+}
 
 // GET /api/reports/profit-loss?startDate&endDate
 router.get(
@@ -17,22 +29,13 @@ router.get(
       const userId = req.user!.id;
       const { startDate, endDate } = req.query;
 
-      const qb = AppDataSource.getRepository(Transaction)
-        .createQueryBuilder('t')
-        .innerJoin('t.account', 'a')
-        .select('t.type', 'type')
-        .addSelect('SUM(t.amount)', 'total')
-        .where('a.user_id = :userId', { userId })
-        .groupBy('t.type');
-
-      if (startDate) {
-        qb.andWhere('t.date >= :startDate', { startDate });
-      }
-      if (endDate) {
-        qb.andWhere('t.date <= :endDate', { endDate });
-      }
-
-      const results = await qb.getRawMany();
+      const results = (await Transaction.findAll({
+        attributes: ['type', [fn('SUM', col('Transaction.amount')), 'total']],
+        include: [{ model: Account, attributes: [], where: { userId }, required: true }],
+        where: dateRangeWhere(startDate, endDate),
+        group: ['Transaction.type'],
+        raw: true,
+      })) as unknown as Array<{ type: TransactionType; total: string }>;
 
       let totalIncome = 0;
       let totalExpenses = 0;
@@ -68,30 +71,29 @@ router.get(
       const userId = req.user!.id;
       const { startDate, endDate } = req.query;
 
-      const qb = AppDataSource.getRepository(Transaction)
-        .createQueryBuilder('t')
-        .innerJoin('t.account', 'a')
-        .leftJoin('t.category', 'c')
-        .select('c.id', 'categoryId')
-        .addSelect('c.name', 'categoryName')
-        .addSelect('c.schedule_c_line', 'scheduleCLine')
-        .addSelect('SUM(t.amount)', 'total')
-        .addSelect('COUNT(t.id)', 'count')
-        .where('a.user_id = :userId', { userId })
-        .andWhere('t.type = :type', { type: TransactionType.EXPENSE })
-        .groupBy('c.id')
-        .addGroupBy('c.name')
-        .addGroupBy('c.schedule_c_line')
-        .orderBy('total', 'DESC');
-
-      if (startDate) {
-        qb.andWhere('t.date >= :startDate', { startDate });
-      }
-      if (endDate) {
-        qb.andWhere('t.date <= :endDate', { endDate });
-      }
-
-      const results = await qb.getRawMany();
+      const results = (await Transaction.findAll({
+        attributes: [
+          [col('Category.id'), 'categoryId'],
+          [col('Category.name'), 'categoryName'],
+          [col('Category.schedule_c_line'), 'scheduleCLine'],
+          [fn('SUM', col('Transaction.amount')), 'total'],
+          [fn('COUNT', col('Transaction.id')), 'count'],
+        ],
+        include: [
+          { model: Account, attributes: [], where: { userId }, required: true },
+          { model: Category, attributes: [], required: false },
+        ],
+        where: { type: TransactionType.EXPENSE, ...dateRangeWhere(startDate, endDate) },
+        group: ['Category.id', 'Category.name', 'Category.schedule_c_line'],
+        order: [[literal('total'), 'DESC']],
+        raw: true,
+      })) as unknown as Array<{
+        categoryId: string | null;
+        categoryName: string | null;
+        scheduleCLine: string | null;
+        total: string;
+        count: string;
+      }>;
 
       const categories = results.map((row) => ({
         categoryId: row.categoryId,
@@ -125,25 +127,18 @@ router.get(
       const userId = req.user!.id;
       const { startDate, endDate } = req.query;
 
-      const qb = AppDataSource.getRepository(Transaction)
-        .createQueryBuilder('t')
-        .innerJoin('t.account', 'a')
-        .select('t.description', 'source')
-        .addSelect('SUM(t.amount)', 'total')
-        .addSelect('COUNT(t.id)', 'count')
-        .where('a.user_id = :userId', { userId })
-        .andWhere('t.type = :type', { type: TransactionType.INCOME })
-        .groupBy('t.description')
-        .orderBy('total', 'DESC');
-
-      if (startDate) {
-        qb.andWhere('t.date >= :startDate', { startDate });
-      }
-      if (endDate) {
-        qb.andWhere('t.date <= :endDate', { endDate });
-      }
-
-      const results = await qb.getRawMany();
+      const results = (await Transaction.findAll({
+        attributes: [
+          ['description', 'source'],
+          [fn('SUM', col('Transaction.amount')), 'total'],
+          [fn('COUNT', col('Transaction.id')), 'count'],
+        ],
+        include: [{ model: Account, attributes: [], where: { userId }, required: true }],
+        where: { type: TransactionType.INCOME, ...dateRangeWhere(startDate, endDate) },
+        group: ['Transaction.description'],
+        order: [[literal('total'), 'DESC']],
+        raw: true,
+      })) as unknown as Array<{ source: string; total: string; count: string }>;
 
       const sources = results.map((row) => ({
         source: row.source,
@@ -174,29 +169,20 @@ router.get(
     try {
       const userId = req.user!.id;
 
-      // Get account balances
-      const accounts = await AppDataSource.getRepository(Account).find({
-        where: { userId },
-      });
-
+      const accounts = await Account.findAll({ where: { userId } });
       const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
 
-      // Get current month date range
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      // Monthly income/expense totals
-      const monthlyTotals = await AppDataSource.getRepository(Transaction)
-        .createQueryBuilder('t')
-        .innerJoin('t.account', 'a')
-        .select('t.type', 'type')
-        .addSelect('SUM(t.amount)', 'total')
-        .where('a.user_id = :userId', { userId })
-        .andWhere('t.date >= :startOfMonth', { startOfMonth })
-        .andWhere('t.date <= :endOfMonth', { endOfMonth })
-        .groupBy('t.type')
-        .getRawMany();
+      const monthlyTotals = (await Transaction.findAll({
+        attributes: ['type', [fn('SUM', col('Transaction.amount')), 'total']],
+        include: [{ model: Account, attributes: [], where: { userId }, required: true }],
+        where: { date: { [Op.gte]: startOfMonth, [Op.lte]: endOfMonth } },
+        group: ['Transaction.type'],
+        raw: true,
+      })) as unknown as Array<{ type: TransactionType; total: string }>;
 
       let monthlyIncome = 0;
       let monthlyExpenses = 0;
@@ -209,27 +195,31 @@ router.get(
         }
       }
 
-      // Outstanding invoices
-      const outstandingInvoices = await AppDataSource.getRepository(Invoice)
-        .createQueryBuilder('i')
-        .select('COUNT(i.id)', 'count')
-        .addSelect('COALESCE(SUM(i.amount), 0)', 'total')
-        .where('i.user_id = :userId', { userId })
-        .andWhere('i.status IN (:...statuses)', {
-          statuses: [InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE],
-        })
-        .getRawOne();
+      const outstandingInvoices = (await Invoice.findOne({
+        attributes: [
+          [fn('COUNT', col('id')), 'count'],
+          [fn('COALESCE', fn('SUM', col('amount')), 0), 'total'],
+        ],
+        where: {
+          userId,
+          status: {
+            [Op.in]: [InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE],
+          },
+        },
+        raw: true,
+      })) as unknown as { count: string; total: string } | null;
 
-      // Recent transactions
-      const recentTransactions = await AppDataSource.getRepository(Transaction)
-        .createQueryBuilder('t')
-        .innerJoin('t.account', 'a')
-        .leftJoinAndSelect('t.category', 'c')
-        .where('a.user_id = :userId', { userId })
-        .orderBy('t.date', 'DESC')
-        .addOrderBy('t.created_at', 'DESC')
-        .take(5)
-        .getMany();
+      const recentTransactions = await Transaction.findAll({
+        include: [
+          { model: Account, attributes: [], where: { userId }, required: true },
+          { model: Category, required: false },
+        ],
+        order: [
+          ['date', 'DESC'],
+          ['createdAt', 'DESC'],
+        ],
+        limit: 5,
+      });
 
       res.json({
         summary: {

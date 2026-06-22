@@ -1,10 +1,14 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  OneToMany,
-} from 'typeorm';
+  Model,
+  DataType,
+  PrimaryKey,
+  Default,
+  AllowNull,
+  HasMany,
+  CreatedAt,
+} from 'sequelize-typescript';
 import { Transaction } from './Transaction';
 
 export enum CategoryType {
@@ -12,29 +16,38 @@ export enum CategoryType {
   EXPENSE = 'expense',
 }
 
-@Entity('categories')
-export class Category {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+@Table({ tableName: 'categories', updatedAt: false })
+export class Category extends Model {
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column(DataType.UUID)
+  declare id: string;
 
-  @Column({ type: 'varchar' })
-  name!: string;
+  @AllowNull(false)
+  @Column(DataType.STRING)
+  declare name: string;
 
-  @Column({ type: 'enum', enum: CategoryType })
-  type!: CategoryType;
+  @AllowNull(false)
+  @Column(DataType.ENUM(...Object.values(CategoryType)))
+  declare type: CategoryType;
 
-  @Column({ type: 'varchar', name: 'schedule_c_line', nullable: true })
-  scheduleCLine!: string | null;
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: 'schedule_c_line' })
+  declare scheduleCLine: string | null;
 
-  @Column({ type: 'boolean', name: 'is_custom', default: false })
-  isCustom!: boolean;
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN, field: 'is_custom' })
+  declare isCustom: boolean;
 
-  @Column({ type: 'uuid', name: 'user_id', nullable: true })
-  userId!: string | null;
+  @AllowNull(true)
+  @Column({ type: DataType.UUID, field: 'user_id' })
+  declare userId: string | null;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreatedAt
+  @Column({ field: 'created_at' })
+  declare createdAt: Date;
 
-  @OneToMany(() => Transaction, (transaction) => transaction.category)
-  transactions!: Transaction[];
+  @HasMany(() => Transaction)
+  declare transactions?: Transaction[];
 }

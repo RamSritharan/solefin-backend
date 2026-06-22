@@ -1,4 +1,3 @@
-import { AppDataSource } from '../config/database';
 import { Category, CategoryType } from '../entities/Category';
 
 interface SeedCategory {
@@ -37,24 +36,20 @@ const defaultCategories: SeedCategory[] = [
 ];
 
 export async function seedCategories(): Promise<void> {
-  const categoryRepository = AppDataSource.getRepository(Category);
-
-  const count = await categoryRepository.count();
+  const count = await Category.count();
   if (count > 0) {
     console.log('Categories already seeded. Skipping.');
     return;
   }
 
-  const categories = defaultCategories.map((cat) =>
-    categoryRepository.create({
-      name: cat.name,
-      type: cat.type,
-      scheduleCLine: cat.scheduleCLine,
-      isCustom: false,
-      userId: null,
-    })
-  );
+  const rows = defaultCategories.map((cat) => ({
+    name: cat.name,
+    type: cat.type,
+    scheduleCLine: cat.scheduleCLine,
+    isCustom: false,
+    userId: null,
+  }));
 
-  await categoryRepository.save(categories);
-  console.log(`Seeded ${categories.length} default categories.`);
+  await Category.bulkCreate(rows);
+  console.log(`Seeded ${rows.length} default categories.`);
 }

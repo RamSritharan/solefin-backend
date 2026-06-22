@@ -1,63 +1,81 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
-import { Account } from './Account';
-import { Category } from './Category';
+  Model,
+  DataType,
+  PrimaryKey,
+  Default,
+  AllowNull,
+  ForeignKey,
+  BelongsTo,
+  CreatedAt,
+  UpdatedAt,
+} from "sequelize-typescript";
+import { Account } from "./Account";
+import { Category } from "./Category";
 
 export enum TransactionType {
-  INCOME = 'income',
-  EXPENSE = 'expense',
+  INCOME = "income",
+  EXPENSE = "expense",
 }
 
-@Entity('transactions')
-export class Transaction {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+@Table({ tableName: "transactions" })
+export class Transaction extends Model {
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column(DataType.UUID)
+  declare id: string;
 
-  @Column({ type: 'uuid', name: 'account_id' })
-  accountId!: string;
+  @ForeignKey(() => Account)
+  @AllowNull(false)
+  @Column({ type: DataType.UUID, field: "account_id", onDelete: "CASCADE" })
+  declare accountId: string;
 
-  @Column({ type: 'uuid', name: 'category_id', nullable: true })
-  categoryId!: string | null;
+  @ForeignKey(() => Category)
+  @AllowNull(true)
+  @Column({ type: DataType.UUID, field: "category_id", onDelete: "SET NULL" })
+  declare categoryId: string | null;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
-  amount!: number;
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(12, 2))
+  declare amount: number;
 
-  @Column({ type: 'enum', enum: TransactionType })
-  type!: TransactionType;
+  @AllowNull(false)
+  @Column(DataType.ENUM(...Object.values(TransactionType)))
+  declare type: TransactionType;
 
-  @Column({ type: 'date' })
-  date!: string;
+  @AllowNull(false)
+  @Column(DataType.DATEONLY)
+  declare date: string;
 
-  @Column({ type: 'varchar' })
-  description!: string;
+  @AllowNull(false)
+  @Column(DataType.STRING)
+  declare description: string;
 
-  @Column({ type: 'text', nullable: true })
-  notes!: string | null;
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare notes: string | null;
 
-  @Column({ type: 'varchar', name: 'receipt_url', nullable: true })
-  receiptUrl!: string | null;
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: "receipt_url" })
+  declare receiptUrl: string | null;
 
-  @Column({ type: 'boolean', name: 'is_recurring', default: false })
-  isRecurring!: boolean;
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN, field: "is_recurring" })
+  declare isRecurring: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreatedAt
+  @Column({ field: "created_at" })
+  declare createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  @UpdatedAt
+  @Column({ field: "updated_at" })
+  declare updatedAt: Date;
 
-  @ManyToOne(() => Account, (account) => account.transactions, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'account_id' })
-  account!: Account;
+  @BelongsTo(() => Account)
+  declare account?: Account;
 
-  @ManyToOne(() => Category, (category) => category.transactions, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'category_id' })
-  category!: Category | null;
+  @BelongsTo(() => Category)
+  declare category?: Category | null;
 }

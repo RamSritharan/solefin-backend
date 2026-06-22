@@ -1,11 +1,16 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
+  Model,
+  DataType,
+  PrimaryKey,
+  Default,
+  Unique,
+  AllowNull,
+  CreatedAt,
+  UpdatedAt,
+  HasMany,
+} from 'sequelize-typescript';
 import { Account } from './Account';
 import { Invoice } from './Invoice';
 
@@ -14,35 +19,46 @@ export enum UserRole {
   ACCOUNTANT = 'accountant',
 }
 
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+@Table({ tableName: 'users' })
+export class User extends Model {
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column(DataType.UUID)
+  declare id: string;
 
-  @Column({ type: 'varchar', unique: true })
-  email!: string;
+  @Unique
+  @AllowNull(false)
+  @Column(DataType.STRING)
+  declare email: string;
 
-  @Column({ type: 'varchar', name: 'password_hash' })
-  passwordHash!: string;
+  @AllowNull(false)
+  @Column({ type: DataType.STRING, field: 'password_hash' })
+  declare passwordHash: string;
 
-  @Column({ type: 'varchar' })
-  name!: string;
+  @AllowNull(false)
+  @Column(DataType.STRING)
+  declare name: string;
 
-  @Column({ type: 'varchar', name: 'business_name', nullable: true })
-  businessName!: string | null;
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: 'business_name' })
+  declare businessName: string | null;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.OWNER })
-  role!: UserRole;
+  @AllowNull(false)
+  @Default(UserRole.OWNER)
+  @Column(DataType.ENUM(...Object.values(UserRole)))
+  declare role: UserRole;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreatedAt
+  @Column({ field: 'created_at' })
+  declare createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  @UpdatedAt
+  @Column({ field: 'updated_at' })
+  declare updatedAt: Date;
 
-  @OneToMany(() => Account, (account) => account.user)
-  accounts!: Account[];
+  @HasMany(() => Account)
+  declare accounts?: Account[];
 
-  @OneToMany(() => Invoice, (invoice) => invoice.user)
-  invoices!: Invoice[];
+  @HasMany(() => Invoice)
+  declare invoices?: Invoice[];
 }

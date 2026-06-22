@@ -1,12 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
-import { AppDataSource } from '../config/database';
 import { Account, AccountType } from '../entities/Account';
+import { Transaction } from '../entities/Transaction';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
-const accountRepository = () => AppDataSource.getRepository(Account);
 
 const createValidation = validate({
   name: { required: true, type: 'string' },
@@ -20,9 +19,9 @@ router.get(
   '/',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const accounts = await accountRepository().find({
+      const accounts = await Account.findAll({
         where: { userId: req.user!.id },
-        order: { createdAt: 'DESC' },
+        order: [['createdAt', 'DESC']],
       });
       res.json({ accounts });
     } catch (error) {
@@ -36,9 +35,9 @@ router.get(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const account = await accountRepository().findOne({
+      const account = await Account.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
-        relations: ['transactions'],
+        include: [{ model: Transaction }],
       });
 
       if (!account) {
@@ -60,15 +59,14 @@ router.post(
     try {
       const { name, type, balance, currency } = req.body;
 
-      const account = accountRepository().create({
+      const account = await Account.create({
         userId: req.user!.id,
         name,
         type,
-        balance: balance || 0,
+        balance: balance ?? 0,
         currency: currency || 'USD',
       });
 
-      await accountRepository().save(account);
       res.status(201).json({ account });
     } catch (error) {
       next(error);
@@ -81,7 +79,7 @@ router.put(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const account = await accountRepository().findOne({
+      const account = await Account.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -96,7 +94,7 @@ router.put(
       if (balance !== undefined) account.balance = balance;
       if (currency !== undefined) account.currency = currency;
 
-      await accountRepository().save(account);
+      await account.save();
       res.json({ account });
     } catch (error) {
       next(error);
@@ -109,7 +107,7 @@ router.delete(
   '/:id',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const account = await accountRepository().findOne({
+      const account = await Account.findOne({
         where: { id: req.params.id as string, userId: req.user!.id },
       });
 
@@ -117,7 +115,7 @@ router.delete(
         throw new AppError('Account not found.', 404);
       }
 
-      await accountRepository().remove(account);
+      await account.destroy();
       res.json({ message: 'Account deleted successfully.' });
     } catch (error) {
       next(error);

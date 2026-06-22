@@ -1,12 +1,16 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+  Model,
+  DataType,
+  PrimaryKey,
+  Default,
+  AllowNull,
+  ForeignKey,
+  BelongsTo,
+  CreatedAt,
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { User } from './User';
 
 export enum InvoiceStatus {
@@ -24,42 +28,55 @@ export interface InvoiceItem {
   amount: number;
 }
 
-@Entity('invoices')
-export class Invoice {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+@Table({ tableName: 'invoices' })
+export class Invoice extends Model {
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column(DataType.UUID)
+  declare id: string;
 
-  @Column({ type: 'uuid', name: 'user_id' })
-  userId!: string;
+  @ForeignKey(() => User)
+  @AllowNull(false)
+  @Column({ type: DataType.UUID, field: 'user_id', onDelete: 'CASCADE' })
+  declare userId: string;
 
-  @Column({ type: 'varchar', name: 'client_name' })
-  clientName!: string;
+  @AllowNull(false)
+  @Column({ type: DataType.STRING, field: 'client_name' })
+  declare clientName: string;
 
-  @Column({ type: 'varchar', name: 'client_email', nullable: true })
-  clientEmail!: string | null;
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: 'client_email' })
+  declare clientEmail: string | null;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
-  amount!: number;
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(12, 2))
+  declare amount: number;
 
-  @Column({ type: 'enum', enum: InvoiceStatus, default: InvoiceStatus.DRAFT })
-  status!: InvoiceStatus;
+  @AllowNull(false)
+  @Default(InvoiceStatus.DRAFT)
+  @Column(DataType.ENUM(...Object.values(InvoiceStatus)))
+  declare status: InvoiceStatus;
 
-  @Column({ type: 'date', name: 'due_date' })
-  dueDate!: string;
+  @AllowNull(false)
+  @Column({ type: DataType.DATEONLY, field: 'due_date' })
+  declare dueDate: string;
 
-  @Column({ type: 'jsonb' })
-  items!: InvoiceItem[];
+  @AllowNull(false)
+  @Column(DataType.JSONB)
+  declare items: InvoiceItem[];
 
-  @Column({ type: 'text', nullable: true })
-  notes!: string | null;
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare notes: string | null;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  @CreatedAt
+  @Column({ field: 'created_at' })
+  declare createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  @UpdatedAt
+  @Column({ field: 'updated_at' })
+  declare updatedAt: Date;
 
-  @ManyToOne(() => User, (user) => user.invoices, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user!: User;
+  @BelongsTo(() => User)
+  declare user?: User;
 }

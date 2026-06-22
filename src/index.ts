@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/env';
-import { AppDataSource } from './config/database';
+import { sequelize } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { seedCategories } from './seeds/categories';
 
@@ -38,7 +38,8 @@ app.use(errorHandler);
 // Start server
 const startServer = async (): Promise<void> => {
   try {
-    await AppDataSource.initialize();
+    await sequelize.authenticate();
+    await sequelize.sync();
     console.log('Database connection established.');
 
     await seedCategories();

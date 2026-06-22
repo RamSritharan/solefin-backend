@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
-import { AppDataSource } from '../config/database';
 import { User } from '../entities/User';
 
 export interface AuthRequest extends Request {
@@ -30,8 +29,7 @@ export const authenticate = async (
 
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
-    const userRepository = AppDataSource.getRepository(User);
-    const user = await userRepository.findOne({ where: { id: decoded.userId } });
+    const user = await User.findByPk(decoded.userId);
 
     if (!user) {
       res.status(401).json({ error: 'User not found. Token may be invalid.' });

@@ -1,14 +1,13 @@
 import { Router, Response, NextFunction } from 'express';
-import { AppDataSource } from '../config/database';
+import { Op, WhereOptions } from 'sequelize';
 import { Transaction, TransactionType } from '../entities/Transaction';
 import { Account } from '../entities/Account';
+import { Category } from '../entities/Category';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
-const transactionRepository = () => AppDataSource.getRepository(Transaction);
-const accountRepository = () => AppDataSource.getRepository(Account);
 
 const createValidation = validate({
   accountId: { required: true, type: 'string' },
@@ -20,41 +19,39 @@ const createValidation = validate({
 
 router.use(authenticate);
 
-// Helper to verify account belongs to user
 async function verifyAccountOwnership(accountId: string, userId: string): Promise<Account> {
-  const account = await accountRepository().findOne({
-    where: { id: accountId, userId },
-  });
+  const account = await Account.findOne({ where: { id: accountId, userId } });
   if (!account) {
     throw new AppError('Account not found or does not belong to you.', 404);
   }
   return account;
 }
 
-// Helper to update account balance
-async function updateAccountBalance(accountId: string, amount: number, type: TransactionType, isReversal: boolean = false): Promise<void> {
-  const account = await accountRepository().findOneBy({ id: accountId });
+async function updateAccountBalance(
+  accountId: string,
+  amount: number,
+  type: TransactionType,
+  isReversal: boolean = false
+): Promise<void> {
+  const account = await Account.findByPk(accountId);
   if (!account) return;
 
   const numericBalance = Number(account.balance);
   const numericAmount = Number(amount);
 
   if (isReversal) {
-    // Reverse the effect
-    if (type === TransactionType.INCOME) {
-      account.balance = numericBalance - numericAmount;
-    } else {
-      account.balance = numericBalance + numericAmount;
-    }
+    account.balance =
+      type === TransactionType.INCOME
+        ? numericBalance - numericAmount
+        : numericBalance + numericAmount;
   } else {
-    if (type === TransactionType.INCOME) {
-      account.balance = numericBalance + numericAmount;
-    } else {
-      account.balance = numericBalance - numericAmount;
-    }
+    account.balance =
+      type === TransactionType.INCOME
+        ? numericBalance + numericAmount
+        : numericBalance - numericAmount;
   }
 
-  await accountRepository().save(account);
+  await account.save();
 }
 
 // GET /api/transactions
@@ -68,38 +65,31 @@ router.get(
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
 
-      const qb = transactionRepository()
-        .createQueryBuilder('transaction')
-        .innerJoin('transaction.account', 'account')
-        .leftJoinAndSelect('transaction.category', 'category')
-        .where('account.user_id = :userId', { userId });
+      const where: WhereOptions = {};
+      if (accountId) (where as Record<string, unknown>).accountId = accountId;
+      if (categoryId) (where as Record<string, unknown>).categoryId = categoryId;
+      if (type) (where as Record<string, unknown>).type = type;
 
-      if (accountId) {
-        qb.andWhere('transaction.account_id = :accountId', { accountId });
+      const dateFilter: Record<symbol, unknown> = {};
+      if (startDate) dateFilter[Op.gte] = startDate;
+      if (endDate) dateFilter[Op.lte] = endDate;
+      if (Object.getOwnPropertySymbols(dateFilter).length > 0) {
+        (where as Record<string, unknown>).date = dateFilter;
       }
 
-      if (categoryId) {
-        qb.andWhere('transaction.category_id = :categoryId', { categoryId });
-      }
-
-      if (type) {
-        qb.andWhere('transaction.type = :type', { type });
-      }
-
-      if (startDate) {
-        qb.andWhere('transaction.date >= :startDate', { startDate });
-      }
-
-      if (endDate) {
-        qb.andWhere('transaction.date <= :endDate', { endDate });
-      }
-
-      qb.orderBy('transaction.date', 'DESC')
-        .addOrderBy('transaction.created_at', 'DESC')
-        .skip((pageNum - 1) * limitNum)
-        .take(limitNum);
-
-      const [transactions, total] = await qb.getManyAndCount();
+      const { rows: transactions, count: total } = await Transaction.findAndCountAll({
+        where,
+        include: [
+          { model: Account, attributes: [], where: { userId }, required: true },
+          { model: Category, required: false },
+        ],
+        order: [
+          ['date', 'DESC'],
+          ['createdAt', 'DESC'],
+        ],
+        offset: (pageNum - 1) * limitNum,
+        limit: limitNum,
+      });
 
       res.json({
         transactions,
@@ -123,13 +113,13 @@ router.get(
     try {
       const userId = req.user!.id;
 
-      const transaction = await transactionRepository()
-        .createQueryBuilder('transaction')
-        .innerJoin('transaction.account', 'account')
-        .leftJoinAndSelect('transaction.category', 'category')
-        .where('transaction.id = :id', { id: req.params.id })
-        .andWhere('account.user_id = :userId', { userId })
-        .getOne();
+      const transaction = await Transaction.findOne({
+        where: { id: req.params.id as string },
+        include: [
+          { model: Account, attributes: [], where: { userId }, required: true },
+          { model: Category, required: false },
+        ],
+      });
 
       if (!transaction) {
         throw new AppError('Transaction not found.', 404);
@@ -153,7 +143,7 @@ router.post(
 
       await verifyAccountOwnership(accountId, userId);
 
-      const transaction = transactionRepository().create({
+      const transaction = await Transaction.create({
         accountId,
         categoryId: categoryId || null,
         amount,
@@ -165,7 +155,6 @@ router.post(
         isRecurring: isRecurring || false,
       });
 
-      await transactionRepository().save(transaction);
       await updateAccountBalance(accountId, amount, type);
 
       res.status(201).json({ transaction });
@@ -182,12 +171,10 @@ router.put(
     try {
       const userId = req.user!.id;
 
-      const transaction = await transactionRepository()
-        .createQueryBuilder('transaction')
-        .innerJoin('transaction.account', 'account')
-        .where('transaction.id = :id', { id: req.params.id })
-        .andWhere('account.user_id = :userId', { userId })
-        .getOne();
+      const transaction = await Transaction.findOne({
+        where: { id: req.params.id as string },
+        include: [{ model: Account, attributes: [], where: { userId }, required: true }],
+      });
 
       if (!transaction) {
         throw new AppError('Transaction not found.', 404);
@@ -195,7 +182,6 @@ router.put(
 
       const { categoryId, amount, type, date, description, notes, receiptUrl, isRecurring } = req.body;
 
-      // Reverse old balance effect
       await updateAccountBalance(transaction.accountId, transaction.amount, transaction.type, true);
 
       if (categoryId !== undefined) transaction.categoryId = categoryId;
@@ -207,9 +193,8 @@ router.put(
       if (receiptUrl !== undefined) transaction.receiptUrl = receiptUrl;
       if (isRecurring !== undefined) transaction.isRecurring = isRecurring;
 
-      await transactionRepository().save(transaction);
+      await transaction.save();
 
-      // Apply new balance effect
       await updateAccountBalance(transaction.accountId, transaction.amount, transaction.type);
 
       res.json({ transaction });
@@ -226,20 +211,17 @@ router.delete(
     try {
       const userId = req.user!.id;
 
-      const transaction = await transactionRepository()
-        .createQueryBuilder('transaction')
-        .innerJoin('transaction.account', 'account')
-        .where('transaction.id = :id', { id: req.params.id })
-        .andWhere('account.user_id = :userId', { userId })
-        .getOne();
+      const transaction = await Transaction.findOne({
+        where: { id: req.params.id as string },
+        include: [{ model: Account, attributes: [], where: { userId }, required: true }],
+      });
 
       if (!transaction) {
         throw new AppError('Transaction not found.', 404);
       }
 
-      // Reverse the balance effect
       await updateAccountBalance(transaction.accountId, transaction.amount, transaction.type, true);
-      await transactionRepository().remove(transaction);
+      await transaction.destroy();
 
       res.json({ message: 'Transaction deleted successfully.' });
     } catch (error) {
