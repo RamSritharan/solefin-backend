@@ -1,0 +1,11 @@
+meta {
+  name: Get Account
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/accounts/{{accountId}}
+  body: none
+  auth: inherit
+}

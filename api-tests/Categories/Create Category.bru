@@ -1,0 +1,29 @@
+meta {
+  name: Create Category
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/categories
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Software Subscriptions",
+    "type": "expense",
+    "scheduleCLine": "27a"
+  }
+}
+
+docs {
+  type is one of: income, expense
+}
+
+script:post-response {
+  if (res.getStatus() < 300 && res.getBody() && res.getBody().category) {
+    bru.setEnvVar("categoryId", res.getBody().category.id);
+  }
+}

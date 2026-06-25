@@ -1,0 +1,30 @@
+meta {
+  name: Connect Plaid
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/accounts
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Business Checking",
+    "type": "checking",
+    "balance": 5000,
+    "currency": "USD"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() < 300 && res.getBody() && res.getBody().account) {
+    bru.setEnvVar("accountId", res.getBody().account.id);
+  }
+}
+
+docs {
+  type is one of: checking, savings, credit_card, cash
+}

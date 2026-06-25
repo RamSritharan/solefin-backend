@@ -1,0 +1,35 @@
+meta {
+  name: Create Invoice
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/invoices
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "clientName": "Acme Corp",
+    "clientEmail": "billing@acme.test",
+    "amount": 1500,
+    "dueDate": "2026-07-31",
+    "items": [
+      {
+        "description": "Consulting - June",
+        "quantity": 10,
+        "rate": 150,
+        "amount": 1500
+      }
+    ],
+    "notes": "Net 30. Thank you for your business."
+  }
+}
+
+script:post-response {
+  if (res.getStatus() < 300 && res.getBody() && res.getBody().invoice) {
+    bru.setEnvVar("invoiceId", res.getBody().invoice.id);
+  }
+}

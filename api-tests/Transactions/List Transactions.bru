@@ -1,0 +1,21 @@
+meta {
+  name: List Transactions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/transactions?page=1&limit=20
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 20
+  ~accountId: {{accountId}}
+  ~categoryId: {{categoryId}}
+  ~type: expense
+  ~startDate: 2026-01-01
+  ~endDate: 2026-12-31
+}

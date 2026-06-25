@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from './errorHandler';
+import { AppError } from '../errors/AppError';
 
 type ValidationSchema = {
   [key: string]: {

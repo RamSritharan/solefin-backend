@@ -1,0 +1,21 @@
+meta {
+  name: Update Invoice Status
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/invoices/{{invoiceId}}/status
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "status": "sent"
+  }
+}
+
+docs {
+  status is one of: draft, sent, viewed, paid, overdue
+}

@@ -1,11 +1,7 @@
 import { Router, Response, NextFunction } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { User } from "../entities/User";
-import { config } from "../config/env";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
-import { AppError } from "../middleware/errorHandler";
+import * as authService from "../services/auth.service";
 
 const router = Router();
 
@@ -31,30 +27,16 @@ router.post(
   ): Promise<void> => {
     try {
       const { email, password, name, businessName } = req.body;
-
-      const existing = await User.findOne({ where: { email } });
-      if (existing) {
-        throw new AppError("An account with this email already exists.", 409);
-      }
-
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
-
-      const user = await User.create({
+      const result = await authService.register({
         email,
-        passwordHash,
+        password,
         name,
-        businessName: businessName || null,
+        businessName,
       });
-
-      const token = jwt.sign(
-        { userId: user.id, email: user.email },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn as unknown as number },
-      );
-
-      const { passwordHash: _, ...userResponse } = user.toJSON();
-      res.status(201).json({ user: userResponse, token });
+      res
+        .status(201)
+        .cookie("token", result.token, { httpOnly: true })
+        .json({ user: result.user });
     } catch (error) {
       next(error);
     }
@@ -72,25 +54,10 @@ router.post(
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
-
-      const user = await User.findOne({ where: { email } });
-      if (!user) {
-        throw new AppError("Invalid email or password.", 401);
-      }
-
-      const isMatch = await bcrypt.compare(password, user.passwordHash);
-      if (!isMatch) {
-        throw new AppError("Invalid email or password.", 401);
-      }
-
-      const token = jwt.sign(
-        { userId: user.id, email: user.email },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn as unknown as number },
-      );
-
-      const { passwordHash: _, ...userResponse } = user.toJSON();
-      res.json({ user: userResponse, token });
+      const result = await authService.login({ email, password });
+      res
+        .cookie("token", result.token, { httpOnly: true })
+        .json({ user: result.user });
     } catch (error) {
       next(error);
     }
@@ -98,22 +65,8 @@ router.post(
 );
 
 // GET /api/auth/me
-router.get(
-  "/me",
-  authenticate,
-  async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      const user = req.user!;
-      const { passwordHash: _, ...userResponse } = user.toJSON();
-      res.json({ user: userResponse });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+router.get("/me", authenticate, (req: AuthRequest, res: Response): void => {
+  res.json({ user: authService.publicProfile(req.user!) });
+});
 
 export default router;

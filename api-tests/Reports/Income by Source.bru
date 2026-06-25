@@ -1,0 +1,16 @@
+meta {
+  name: Income by Source
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/reports/income-by-source?startDate=2026-01-01&endDate=2026-12-31
+  body: none
+  auth: inherit
+}
+
+params:query {
+  startDate: 2026-01-01
+  endDate: 2026-12-31
+}

@@ -1,126 +1,151 @@
-import { Router, Response, NextFunction } from 'express';
-import { Account, AccountType } from '../entities/Account';
-import { Transaction } from '../entities/Transaction';
-import { authenticate, AuthRequest } from '../middleware/auth';
-import { validate } from '../middleware/validate';
-import { AppError } from '../middleware/errorHandler';
+import { Router, Response, NextFunction } from "express";
+import { AccountType } from "../entities/Account";
+import { authenticate, AuthRequest } from "../middleware/auth";
+import { validate } from "../middleware/validate";
+import * as accountService from "../services/account.service";
+import { plaidService } from "../services/plaid.service";
+import { User } from "../entities/User";
 
 const router = Router();
 
 const createValidation = validate({
-  name: { required: true, type: 'string' },
-  type: { required: true, type: 'string', enum: Object.values(AccountType) },
+  name: { required: true, type: "string" },
+  type: { required: true, type: "string", enum: Object.values(AccountType) },
 });
 
 router.use(authenticate);
 
 // GET /api/accounts
 router.get(
-  '/',
-  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  "/",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
-      const accounts = await Account.findAll({
-        where: { userId: req.user!.id },
-        order: [['createdAt', 'DESC']],
-      });
+      const accounts = await accountService.listForUser(req.user!.id);
       res.json({ accounts });
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 // GET /api/accounts/:id
 router.get(
-  '/:id',
-  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  "/:id",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
-      const account = await Account.findOne({
-        where: { id: req.params.id as string, userId: req.user!.id },
-        include: [{ model: Transaction }],
-      });
-
-      if (!account) {
-        throw new AppError('Account not found.', 404);
-      }
-
+      const account = await accountService.getForUser(
+        req.params.id as string,
+        req.user!.id,
+      );
       res.json({ account });
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 // POST /api/accounts
 router.post(
-  '/',
+  "/",
   createValidation,
-  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { name, type, balance, currency } = req.body;
-
-      const account = await Account.create({
+      const account = await accountService.create({
         userId: req.user!.id,
         name,
         type,
-        balance: balance ?? 0,
-        currency: currency || 'USD',
+        balance,
+        currency,
       });
-
       res.status(201).json({ account });
     } catch (error) {
       next(error);
     }
-  }
+  },
+);
+
+router.post(
+  "/plaid",
+  createValidation,
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const user = req.body.user;
+
+      const clientUser = await User.findByPk(user.id);
+
+      if (!clientUser) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
+
+      const linkTokenResponse = await plaidService(clientUser.id);
+
+      if (!linkTokenResponse || !linkTokenResponse.link_token) {
+        res.status(500).json({ message: "Failed to create link token" });
+        return;
+      }
+
+      res.json({ linkToken: linkTokenResponse.link_token });
+    } catch (error) {
+      next(error);
+      //logger
+    }
+  },
 );
 
 // PUT /api/accounts/:id
 router.put(
-  '/:id',
-  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  "/:id",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
-      const account = await Account.findOne({
-        where: { id: req.params.id as string, userId: req.user!.id },
-      });
-
-      if (!account) {
-        throw new AppError('Account not found.', 404);
-      }
-
-      const { name, type, balance, currency } = req.body;
-
-      if (name !== undefined) account.name = name;
-      if (type !== undefined) account.type = type;
-      if (balance !== undefined) account.balance = balance;
-      if (currency !== undefined) account.currency = currency;
-
-      await account.save();
+      const account = await accountService.update(
+        req.params.id as string,
+        req.user!.id,
+        req.body,
+      );
       res.json({ account });
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 // DELETE /api/accounts/:id
 router.delete(
-  '/:id',
-  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  "/:id",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
-      const account = await Account.findOne({
-        where: { id: req.params.id as string, userId: req.user!.id },
-      });
-
-      if (!account) {
-        throw new AppError('Account not found.', 404);
-      }
-
-      await account.destroy();
-      res.json({ message: 'Account deleted successfully.' });
+      await accountService.remove(req.params.id as string, req.user!.id);
+      res.json({ message: "Account deleted successfully." });
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 export default router;

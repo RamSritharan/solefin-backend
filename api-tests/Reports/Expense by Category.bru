@@ -1,0 +1,16 @@
+meta {
+  name: Expense by Category
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/reports/expense-by-category?startDate=2026-01-01&endDate=2026-12-31
+  body: none
+  auth: inherit
+}
+
+params:query {
+  startDate: 2026-01-01
+  endDate: 2026-12-31
+}

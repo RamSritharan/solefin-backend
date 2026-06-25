@@ -1,0 +1,18 @@
+meta {
+  name: Update Transaction
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/transactions/{{transactionId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "amount": 59.99,
+    "description": "Monthly SaaS subscription (upgraded)"
+  }
+}

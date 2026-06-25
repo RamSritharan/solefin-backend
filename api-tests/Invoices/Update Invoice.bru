@@ -1,0 +1,18 @@
+meta {
+  name: Update Invoice
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/invoices/{{invoiceId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "amount": 1650,
+    "notes": "Net 30. Revised total includes extra hours."
+  }
+}
