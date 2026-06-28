@@ -33,12 +33,9 @@ router.post(
         name,
         businessName,
       });
-      res
-        .status(201)
-        .cookie("token", result.token, { httpOnly: true })
-        .json({ user: result.user });
+      res.status(201).cookie("token", result.token, { httpOnly: true });
     } catch (error) {
-      next(error);
+      res.status(500).json({ message: (error as Error).message });
     }
   },
 );
@@ -55,18 +52,34 @@ router.post(
     try {
       const { email, password } = req.body;
       const result = await authService.login({ email, password });
-      res
-        .cookie("token", result.token, { httpOnly: true })
-        .json({ user: result.user });
+      res.cookie("token", result.token, { httpOnly: true, sameSite: "strict" });
+      res.json({ user: result.user });
     } catch (error) {
-      next(error);
+      res.status(500).json({ message: (error as Error).message });
     }
   },
 );
 
 // GET /api/auth/me
-router.get("/me", authenticate, (req: AuthRequest, res: Response): void => {
-  res.json({ user: authService.publicProfile(req.user!) });
+router.get(
+  "/me",
+  authenticate,
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+    res.json({ user: req.user });
+  },
+);
+
+router.get("/logout", (req: AuthRequest, res: Response): void => {
+  res.clearCookie("token");
+  res.json({ message: "Logged out successfully." });
 });
 
 export default router;

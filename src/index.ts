@@ -12,12 +12,14 @@ import transactionRoutes from "./routes/transaction.routes";
 import categoryRoutes from "./routes/category.routes";
 import invoiceRoutes from "./routes/invoice.routes";
 import reportRoutes from "./routes/report.routes";
+import cookieParser from "cookie-parser";
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use("/api/auth", authRoutes);

@@ -77,6 +77,7 @@ router.post(
   },
 );
 
+//plaid integration
 router.post(
   "/plaid",
   createValidation,
@@ -86,7 +87,12 @@ router.post(
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const user = req.body.user;
+      const user = req.cookies.user ? JSON.parse(req.cookies.user) : null;
+
+      if (!user || !user.id) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
 
       const clientUser = await User.findByPk(user.id);
 
