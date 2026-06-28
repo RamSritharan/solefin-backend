@@ -1,0 +1,28 @@
+meta {
+  name: Refresh
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/refresh
+  body: none
+  auth: none
+}
+
+docs {
+  Run Login (or Register) first so the httpOnly refreshToken cookie is in
+  the jar — this request sends it automatically to mint a fresh token pair.
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("returns the user", function () {
+    expect(res.getBody().user).to.be.an("object");
+  });
+  test("sets a new access token cookie", function () {
+    expect(JSON.stringify(res.getHeader("set-cookie"))).to.contain("token=");
+  });
+}

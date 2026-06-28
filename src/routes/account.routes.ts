@@ -3,7 +3,7 @@ import { AccountType } from "../entities/Account";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import * as accountService from "../services/account.service";
-import { plaidService } from "../services/plaid.service";
+import { PlaidService } from "../services/plaid.service";
 import { User } from "../entities/User";
 
 const router = Router();
@@ -78,30 +78,18 @@ router.post(
 );
 
 //plaid integration
+
+// Step 1: create a link_token to initialize Plaid Link in the browser.
 router.post(
   "/plaid",
-  createValidation,
   async (
     req: AuthRequest,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const user = req.cookies.user ? JSON.parse(req.cookies.user) : null;
-
-      if (!user || !user.id) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-      }
-
-      const clientUser = await User.findByPk(user.id);
-
-      if (!clientUser) {
-        res.status(404).json({ message: "User not found" });
-        return;
-      }
-
-      const linkTokenResponse = await plaidService(clientUser.id);
+      const plaidService = new PlaidService(req.user!.id);
+      const linkTokenResponse = await plaidService.createLinkToken();
 
       if (!linkTokenResponse || !linkTokenResponse.link_token) {
         res.status(500).json({ message: "Failed to create link token" });
@@ -111,7 +99,32 @@ router.post(
       res.json({ linkToken: linkTokenResponse.link_token });
     } catch (error) {
       next(error);
-      //logger
+    }
+  },
+);
+
+// Step 2: exchange the public_token (from Link onSuccess) for an access_token
+// and persist it on the user.
+router.post(
+  "/plaid/exchange",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { publicToken } = req.body;
+      if (!publicToken) {
+        res.status(400).json({ message: "publicToken is required" });
+        return;
+      }
+
+      const plaidService = new PlaidService(req.user!.id);
+      await plaidService.exchangePublicToken(publicToken);
+
+      res.json({ message: "Bank account linked successfully." });
+    } catch (error) {
+      next(error);
     }
   },
 );

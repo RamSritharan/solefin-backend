@@ -1,0 +1,25 @@
+meta {
+  name: LogoutAll
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/auth/logout-all
+  body: none
+  auth: none
+}
+
+docs {
+  Run Login first. Revokes every refresh token for the user by bumping
+  tokenVersion — after this, the Refresh request should fail with 401.
+}
+
+tests {
+  test("status is 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("confirms all sessions logged out", function () {
+    expect(res.getBody().message).to.contain("all sessions");
+  });
+}

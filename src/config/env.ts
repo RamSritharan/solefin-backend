@@ -13,6 +13,10 @@ export const config = {
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'solefin-dev-secret-key-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    refreshSecret:
+      process.env.JWT_REFRESH_SECRET ||
+      'solefin-dev-refresh-secret-key-change-in-production',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 };

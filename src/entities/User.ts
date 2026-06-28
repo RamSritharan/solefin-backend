@@ -48,6 +48,17 @@ export class User extends Model {
   @Column(DataType.ENUM(...Object.values(UserRole)))
   declare role: UserRole;
 
+  // Incremented to invalidate all outstanding refresh tokens for this user.
+  @AllowNull(false)
+  @Default(0)
+  @Column({ type: DataType.INTEGER, field: 'token_version' })
+  declare tokenVersion: number;
+
+  // Plaid access token obtained after exchanging the Link public_token. Sensitive.
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: 'plaid_access_token' })
+  declare plaidAccessToken: string | null;
+
   @CreatedAt
   @Column({ field: 'created_at' })
   declare createdAt: Date;

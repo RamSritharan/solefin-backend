@@ -18,12 +18,7 @@ export const authenticate = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    let token: string | undefined;
-
-    if (req.cookies?.token) {
-      token = req.cookies.token;
-    }
+    const token: string | undefined = req.cookies?.token;
 
     if (!token) {
       res
@@ -46,12 +41,14 @@ export const authenticate = async (
     req.user = user;
     next();
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({ error: "Invalid token." });
+    if (error instanceof jwt.TokenExpiredError) {
+      res
+        .status(401)
+        .json({ error: "Token has expired.", code: "TOKEN_EXPIRED" });
       return;
     }
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ error: "Token has expired." });
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ error: "Invalid token." });
       return;
     }
     next(error);
