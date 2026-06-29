@@ -88,6 +88,12 @@ export class PlaidService {
         access_token: accessToken,
       });
 
+      if (!res.data.accounts || res.data.accounts.length === 0) {
+        throw new Error("No accounts found for the user");
+      }
+
+      console.log("Plaid accounts:", res.data.accounts);
+
       const accounts = res.data.accounts.map((account) => ({
         account_id: account.account_id,
         userId: this.userId,
