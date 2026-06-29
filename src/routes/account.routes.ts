@@ -129,6 +129,32 @@ router.post(
   },
 );
 
+router.get(
+  "/plaid/accounts",
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const user = await User.findByPk(req.user!.id);
+      if (!user || !user.plaidAccessToken) {
+        res
+          .status(400)
+          .json({ message: "User does not have a linked bank account." });
+        return;
+      }
+
+      const plaidService = new PlaidService(req.user!.id);
+      const accounts = await plaidService.plaidAccounts(user.plaidAccessToken);
+
+      res.status(200).json({ accounts });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // PUT /api/accounts/:id
 router.put(
   "/:id",

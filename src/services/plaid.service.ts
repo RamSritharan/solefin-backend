@@ -6,6 +6,18 @@ import {
   LinkTokenCreateResponse,
 } from "plaid";
 import { User } from "../entities/User";
+import { Account } from "../entities/Account";
+
+type AccountsBase = {
+  account_id: string;
+  userId: string;
+  name: string;
+  type: string;
+  subtype: string | null;
+  current: number | null;
+  available: number | null;
+  currency: string | null;
+};
 
 export class PlaidService {
   private readonly userId: string;
@@ -66,6 +78,37 @@ export class PlaidService {
       );
       throw new Error(
         err.response?.data?.error_message ?? "Failed to exchange public token",
+      );
+    }
+  }
+
+  async plaidAccounts(accessToken: string): Promise<void> {
+    try {
+      const res = await plaidClient.accountsBalanceGet({
+        access_token: accessToken,
+      });
+
+      const accounts = res.data.accounts.map((account) => ({
+        account_id: account.account_id,
+        userId: this.userId,
+        name: account.name,
+        type: account.type,
+        subtype: account.subtype,
+        current: account.balances.current,
+        available: account.balances.available,
+        currency: account.balances.iso_currency_code,
+      }));
+
+      const savedAccounts = await Account.bulkCreate(accounts);
+
+      if (!savedAccounts) {
+        throw new Error("Failed to save accounts");
+      }
+    } catch (err: any) {
+      console.error("Plaid get accounts failed:", err);
+
+      throw new Error(
+        err.response.data.error_message ?? "Failed to retrieve accounts",
       );
     }
   }
