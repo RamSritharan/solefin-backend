@@ -25,7 +25,7 @@ router.get(
   ): Promise<void> => {
     try {
       const accounts = await accountService.listForUser(req.user!.id);
-      res.json({ accounts });
+      res.status(200).json({ accounts });
     } catch (error) {
       next(error);
     }

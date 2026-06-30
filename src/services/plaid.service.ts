@@ -94,15 +94,15 @@ export class PlaidService {
 
       console.log("Plaid accounts:", res.data.accounts);
 
+      // Map Plaid fields onto the Account entity's actual columns. Plaid's
+      // current/subtype/currency can be null, but those columns are NOT NULL.
       const accounts = res.data.accounts.map((account) => ({
-        account_id: account.account_id,
         userId: this.userId,
         name: account.name,
         type: account.type,
-        subtype: account.subtype,
-        current: account.balances.current,
-        available: account.balances.available,
-        currency: account.balances.iso_currency_code,
+        subtype: account.subtype ?? "unknown",
+        balance: account.balances.current ?? 0,
+        currency: account.balances.iso_currency_code ?? "USD",
       }));
 
       const savedAccounts = await Account.bulkCreate(accounts);
@@ -114,7 +114,7 @@ export class PlaidService {
       console.error("Plaid get accounts failed:", err);
 
       throw new Error(
-        err.response.data.error_message ?? "Failed to retrieve accounts",
+        err.response?.data?.error_message ?? "Failed to retrieve accounts",
       );
     }
   }
